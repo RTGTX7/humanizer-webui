@@ -1,0 +1,18 @@
+services:
+  humanizer-webui:
+    build: .
+    image: humanizer-webui:local
+    ports:
+      - "47616:47616"
+    environment:
+      HUMANIZER_PUBLIC_ORIGIN: "http://192.168.1.10:47616"
+      LLM_PROVIDER: "lm-studio"
+      LLM_API: "http://192.168.1.20:1234/v1"
+      LLM_MODEL: "humanizer@q6_k"
+      LLM_TOKEN: "${LLM_TOKEN:-}"
+    volumes:
+      - humanizer-data:/data
+    restart: unless-stopped
+
+volumes:
+  humanizer-data:

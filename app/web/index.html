@@ -9,10 +9,8 @@
 <link rel="preload" href="fonts/InstrumentSans-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/BricolageGrotesque-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/app.css">
-<link rel="stylesheet" href="css/update.css">
 <script src="js/boot.js"></script>
 <script type="module" src="js/app.js"></script>
-<script type="module" src="js/update.js"></script>
 </head>
 <body>
 
@@ -74,21 +72,10 @@
     <dt data-i18n="menu.model">模型</dt><dd id="pi-model">—</dd>
     <dt data-i18n="menu.engine">引擎</dt><dd id="pi-engine">—</dd>
     <dt data-i18n="menu.device">设备</dt><dd id="pi-device">—</dd>
-    <dt data-i18n="menu.memory">内存</dt><dd id="pi-ram">—</dd>
-    <dt data-i18n="menu.context">上下文</dt><dd id="pi-ctx">—</dd>
-    <dt data-i18n="menu.paths">存储位置</dt><dd id="pi-paths">—</dd>
-    <dt data-i18n="upd.versionLabel">版本</dt><dd id="pi-version">—</dd>
   </dl>
   <div class="pop-actions">
-    <button class="row-btn" id="pa-tier" type="button"><svg><use href="#i-layers"/></svg><span data-i18n="menu.changeTier">更换模型档位</span></button>
-    <button class="row-btn" id="pa-paths" type="button"><svg><use href="#i-folder"/></svg><span data-i18n="menu.changePaths">更改存储位置</span></button>
-    <button class="row-btn" id="pa-reveal" type="button"><svg><use href="#i-folder"/></svg><span data-i18n="menu.reveal">打开模型文件夹</span></button>
     <button class="row-btn" id="pa-restart" type="button"><svg><use href="#i-redo"/></svg><span data-i18n="menu.restart">重启引擎</span></button>
-    <button class="row-btn" id="pa-external" type="button"><svg><use href="#i-plug"/></svg><span data-i18n="ext.menu">外部模型服务</span><span class="row-badge ext-badge" id="pa-external-badge" data-i18n="ext.on" hidden>已开启</span></button>
-    <button class="row-btn" id="pa-update" type="button"><svg><use href="#i-update"/></svg><span data-i18n="upd.menu">检查更新</span><span class="row-badge" id="pa-update-badge" hidden></span></button>
-    <button class="row-btn danger" id="pa-quit" type="button"><svg><use href="#i-power"/></svg><span data-i18n="menu.quit">退出 Humanizer</span></button>
   </div>
-  <p class="pop-foot" id="pi-idle"></p>
 </div>
 
 <main id="main">
@@ -145,7 +132,7 @@
         <button class="cta" id="btn-download" type="button"><span id="cta-text"></span><svg><use href="#i-arrow"/></svg></button>
         <button class="btn ghost back" id="btn-back" type="button" hidden data-i18n="setup.back">返回</button>
         <p class="fine" id="setup-fine" data-i18n="setup.fine">模型存在本机的应用数据目录里，可以随时删掉。断网、关页面都能续传。</p>
-        <button class="btn ghost ext-link" id="btn-setup-external" type="button"><svg aria-hidden="true"><use href="#i-plug"/></svg><span data-i18n="ext.setupLink">已经在用 LM Studio 等本地模型服务？接入外部服务</span></button>
+
       </div>
 
       <!-- 下载 / 校验 / 装载 -->

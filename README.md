@@ -1,3 +1,11 @@
+# Humanizer WebUI for Docker
+
+This fork of [sgaofen/humanizer-local-model](https://github.com/sgaofen/humanizer-local-model) serves the original editor with an external OpenAI-compatible model API.
+
+[Docker deployment guide](README.docker.md) · [Synology Container Manager YAML](compose.synology.yml)
+
+## Upstream project overview
+
 <img src="assets/banner-en.png" alt="humanizer: rewrites AI drafts so they read like a person wrote them" width="100%">
 
 <p align="center">

@@ -37,6 +37,7 @@ type externalStatus struct {
 	URL     string `json:"url"`
 	Model   string `json:"model"`
 	HasKey  bool   `json:"has_key"`
+	Problem string `json:"problem,omitempty"`
 }
 
 const externalKeyFile = "external-api-key"

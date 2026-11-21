@@ -1,7 +1,6 @@
 // Humanizer 网页主控:状态轮询 → 视图切换(首次下载 / 编辑器)→ 改写流式输出 → 差异与历史。
 import { t, apply, setLang, getLang } from './i18n.js';
 import { getJSON, postJSON, countTokens, streamCompletion, streamChat } from './api.js';
-import { bindExternal, openExternal, refreshExternal } from './external.js';
 import { buildPrompt, selfCheck, nPredictFor } from './prompt.js';
 import { withLangGuard, langDrift } from './guard.js';
 import { tokenize, diffTokens, markBits, factBits, renderRuns, flagNumbers } from './diff.js';
@@ -181,6 +180,10 @@ function renderStatus() {
     case 'paused': text = t('status.paused'); break;
     case 'setup': text = t('status.setup'); break;
     case 'error': state = 'error'; text = t('status.error'); break;
+    case 'external_offline':
+      state = 'error';
+      text = `${t('ext.status')} · ${st.external.problem || t('status.error')}`;
+      break;
     default: text = st.phase;
   }
   el.dataset.state = state;
@@ -454,25 +457,9 @@ function renderPop() {
   if (!st) return;
   const tier = tierOf(st.tier);
   const e = st.engine || {};
-  $('pi-model').textContent = tier ? `${tier.label} · ${tier.file}` : '—';
-  const eng = [BACKEND[e.backend] || e.backend, e.offload ? t('menu.layers', { n: e.offload }) : '', e.build].filter(Boolean).join(' · ');
-  $('pi-engine').textContent = eng || (st.backends?.length ? st.backends.map((b) => BACKEND[b] || b).join(' / ') : '—');
-  $('pi-device').textContent = e.device || st.sys.cpu || '—';
-  $('pi-ram').textContent = `${Math.round(st.sys.ram_gb)} GB`;
-  $('pi-ctx').textContent = `${fmtNum(st.ctx_size, getLang())} tokens`;
-  $('pi-paths').textContent = st.model_dir || '—';
-  $('pi-idle').textContent = st.idle_exit_minutes > 0 ? t('menu.idle', { n: st.idle_exit_minutes }) : '';
-  $('pa-restart').hidden = !['ready', 'starting', 'error'].includes(st.phase);
-  const ext = extOn();
-  $('pa-external-badge').hidden = !ext;
-  $('pa-tier').hidden = ext;
-  if (ext) {
-    $('pi-model').textContent = st.external.model || '—';
-    $('pi-engine').textContent = t('ext.engine');
-    $('pi-device').textContent = st.external.url;
-    $('pi-ctx').textContent = t('ext.ctxGuess', { n: fmtNum(st.ctx_size, getLang()) });
-    $('pa-restart').hidden = true;
-  }
+  $('pi-model').textContent = st.external?.model || (tier ? `${tier.label} · ${tier.file}` : 'Humanizer');
+  $('pi-engine').textContent = st.external?.enabled ? t('ext.engine') : (BACKEND[e.backend] || e.backend || 'LM Studio');
+  $('pi-device').textContent = st.external?.url || e.device || '—';
 }
 
 function togglePop(force) {
@@ -537,7 +524,6 @@ function updateGo() {
   renderCopyButton();
   $('btn-download-text').disabled = S.running || !S.result;
   updateDocumentProgress();
-  refreshExternal();
   $('out-empty-sub').innerHTML = t('out.emptySub', { key: KEY_LABEL });
 }
 
@@ -1448,33 +1434,7 @@ function bind() {
       if ($('drawer').classList.contains('open')) renderHistory();
     });
   }
-  $('pa-external').addEventListener('click', (e) => { e.stopPropagation(); togglePop(false); openExternal(true, $('btn-menu')); });
-  $('btn-setup-external').addEventListener('click', () => openExternal(true));
-  bindExternal({
-    isRunning: () => S.running,
-    toast,
-    onChange: () => { S.forceSetup = false; S.tierSig = ''; poll(); },
-  });
-  $('pa-tier').addEventListener('click', () => { togglePop(false); S.forceSetup = true; S.pickTier = S.status?.tier; S.tierSig = ''; render(); });
-  $('pa-paths').addEventListener('click', () => {
-    togglePop(false);
-    S.forceSetup = true;
-    S.tierSig = '';
-    S.pathsDirty = false;
-    render();
-    $('paths').open = true;
-    $('path-data').focus({ preventScroll: false });
-    $('paths').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  });
-  $('pa-reveal').addEventListener('click', () => postJSON('/app/reveal', { what: 'models' }).then(() => toast(t('toast.revealed'))).catch((e) => toast(e.message)));
   $('pa-restart').addEventListener('click', async () => { togglePop(false); toast(t('toast.restarting')); await postJSON('/app/engine/restart', {}, { timeout: SLOW_POST_MS }).catch((e) => toast(e.message)); poll(); });
-  $('pa-quit').addEventListener('click', async () => {
-    if (!confirm(t('confirm.quit'))) return;
-    S.quit = true;
-    togglePop(false);
-    try { await postJSON('/app/quit'); } catch { /* 已经没了 */ }
-    showOverlay(t('overlay.quitTitle'), t('overlay.quitMsg'), 'quit');
-  });
 
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); run(); }

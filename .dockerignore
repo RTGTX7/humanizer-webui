@@ -1,0 +1,12 @@
+# Humanizer WebUI only
+.git
+.gitignore
+README*
+docs
+assets
+hf
+eval
+space
+scripts
+humanizer
+app/**/*.md

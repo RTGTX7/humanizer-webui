@@ -1,0 +1,27 @@
+services:
+  humanizer-webui:
+    build: .
+    container_name: humanizer-webui
+    ports:
+      - "127.0.0.1:${HUMANIZER_PORT:-47616}:${HUMANIZER_PORT:-47616}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      LLM_PROVIDER: "${LLM_PROVIDER:-lm-studio}"
+      LLM_API: "${LLM_API:-}"
+      LLM_MODEL: "${LLM_MODEL:-}"
+      LLM_TOKEN: "${LLM_TOKEN:-}"
+      HUMANIZER_EXTERNAL_URL: "${HUMANIZER_EXTERNAL_URL:-http://host.docker.internal:1234/v1}"
+      HUMANIZER_EXTERNAL_MODEL: "${HUMANIZER_EXTERNAL_MODEL:-humanizer@q6_k}"
+      HUMANIZER_EXTERNAL_API_KEY: "${HUMANIZER_EXTERNAL_API_KEY:-}"
+      HUMANIZER_BIND: "0.0.0.0"
+      HUMANIZER_NO_BROWSER: "1"
+      HUMANIZER_PORT: "${HUMANIZER_PORT:-47616}"
+      HUMANIZER_SERVER: "1"
+      HUMANIZER_IDLE_EXIT: "0"
+    volumes:
+      - humanizer-data:/data
+    restart: unless-stopped
+
+volumes:
+  humanizer-data:

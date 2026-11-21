@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +29,15 @@ func (a *App) handler() http.Handler {
 	mux.HandleFunc("GET /app/ping", a.handlePing)
 	mux.HandleFunc("GET /app/status", a.handleStatus)
 	mux.HandleFunc("GET /app/config", a.handleConfig)
+	if os.Getenv("HUMANIZER_SERVER") == "1" {
+		mux.HandleFunc("POST /app/document", a.handleDocument)
+		mux.HandleFunc("POST /app/engine/restart", a.handleRestart)
+		mux.Handle("POST /api/v1/chat/completions", a.apiProxy())
+		mux.Handle("/app/", http.NotFoundHandler())
+		mux.Handle("/api/", http.NotFoundHandler())
+		mux.Handle("/", a.static())
+		return a.guard(mux)
+	}
 	mux.HandleFunc("POST /app/setup", a.handleSetup)
 	mux.HandleFunc("POST /app/document", a.handleDocument)
 	mux.HandleFunc("POST /app/download/pause", a.handlePause)
@@ -56,6 +67,13 @@ func (a *App) guard(next http.Handler) http.Handler {
 	okOrigin := map[string]bool{
 		fmt.Sprintf("http://127.0.0.1:%d", a.port): true,
 		fmt.Sprintf("http://localhost:%d", a.port): true,
+	}
+	if os.Getenv("HUMANIZER_SERVER") == "1" {
+		u, err := url.Parse(strings.TrimSpace(os.Getenv("HUMANIZER_PUBLIC_ORIGIN")))
+		if err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil && (u.Path == "" || u.Path == "/") && u.RawQuery == "" && u.Fragment == "" {
+			okHost[u.Host] = true
+			okOrigin[u.Scheme+"://"+u.Host] = true
+		}
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !okHost[r.Host] {
@@ -261,6 +279,12 @@ func (a *App) handleStatus(w http.ResponseWriter, r *http.Request) {
 		s.Engine = &e
 	}
 	a.mu.Unlock()
+	if os.Getenv("HUMANIZER_SERVER") == "1" && s.External != nil && s.External.Enabled {
+		if err := a.checkLLM(r.Context()); err != nil {
+			s.Phase = "external_offline"
+			s.External.Problem = err.Error()
+		}
+	}
 	writeJSON(w, 200, s)
 }
 
@@ -335,6 +359,25 @@ func (a *App) handlePause(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
+func (a *App) checkLLM(ctx context.Context) error {
+	a.mu.Lock()
+	base, model, key := a.settings.External.URL, a.settings.External.Model, a.extKey
+	a.mu.Unlock()
+	ctx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+	models, status, err := probeExternal(ctx, base, key)
+	if err != nil {
+		if status == 0 {
+			return fmt.Errorf("LLM API unreachable or timed out")
+		}
+		return fmt.Errorf("LLM model discovery failed (HTTP %d)", status)
+	}
+	if model != "" && !slices.Contains(models, model) {
+		return fmt.Errorf("Configured model %q is missing from /models", model)
+	}
+	return nil
+}
+
 func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	t, ok := a.cfg.tier(a.tier)
@@ -342,7 +385,16 @@ func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
 	ext := a.externalOn()
 	a.mu.Unlock()
 	if ext {
-		writeJSON(w, 409, map[string]any{"error": "external service is on", "code": "external_on"})
+		if os.Getenv("HUMANIZER_SERVER") != "1" {
+			writeJSON(w, 409, map[string]any{"error": "external service is on", "code": "external_on"})
+			return
+		}
+		externalTransport.CloseIdleConnections()
+		if err := a.checkLLM(r.Context()); err != nil {
+			writeJSON(w, 502, map[string]any{"error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "backend": "external"})
 		return
 	}
 	if !ok || !fileExists(a.modelPath(t)) {

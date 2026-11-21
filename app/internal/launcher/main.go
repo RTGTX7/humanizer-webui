@@ -139,9 +139,41 @@ func Main(o Options) int {
 		}
 	}()
 	a.settings = loadSettings(a.settingsPath())
-	a.extKey = a.loadExternalKey()
 	if _, ok := cfg.endpoint(a.settings.Endpoint); !ok {
 		a.settings.Endpoint = cfg.Endpoints[0].ID
+	}
+	provider := os.Getenv("LLM_PROVIDER")
+	externalURL := os.Getenv("LLM_API")
+	if externalURL == "" {
+		externalURL = os.Getenv("HUMANIZER_EXTERNAL_URL")
+	}
+	externalModel := os.Getenv("LLM_MODEL")
+	if externalModel == "" {
+		externalModel = os.Getenv("HUMANIZER_EXTERNAL_MODEL")
+	}
+	if externalURL != "" {
+		base, err := normalizeExternalURL(externalURL)
+		if err != nil {
+			logger.Print("Invalid LLM API URL")
+			return 1
+		}
+		a.settings.External = &ExternalSettings{Enabled: true, URL: base, Model: externalModel}
+		if provider != "" {
+			logger.Printf("LLM provider: %s", provider)
+		}
+		if err := saveSettings(a.settingsPath(), a.settings); err != nil {
+			logger.Printf("保存外部服务设置失败: %v", err)
+			return 1
+		}
+	}
+	if externalURL != "" {
+		a.extKey = envOr("LLM_TOKEN", os.Getenv("HUMANIZER_EXTERNAL_API_KEY"))
+	} else {
+		a.extKey = a.loadExternalKey()
+	}
+	if os.Getenv("HUMANIZER_SERVER") == "1" && !a.externalOn() {
+		logger.Print("LLM_API is required in server mode")
+		return 1
 	}
 	a.sys = detectSys()
 	a.backends = discoverBackends(engines, a.sys.GPU)
@@ -225,6 +257,9 @@ func Main(o Options) int {
 	}
 	go a.idleLoop(ctx)
 	go a.updates.autoLoop(ctx, func() bool {
+		if os.Getenv("HUMANIZER_SERVER") == "1" {
+			return false
+		}
 		a.mu.Lock()
 		defer a.mu.Unlock()
 		return a.updates.autoEnabled(a.settings)
@@ -297,8 +332,12 @@ func atoiOr(s string, def int) int {
 // listenPreferred:优先用固定端口。localStorage 按 "源"(含端口)隔离,
 // 端口一变,浏览器里的历史记录就看不到了,所以尽量每次都用同一个。
 func listenPreferred(forced, saved, preferred int) (net.Listener, error) {
+	host := "127.0.0.1"
+	if os.Getenv("HUMANIZER_BIND") == "0.0.0.0" {
+		host = "0.0.0.0"
+	}
 	if forced > 0 {
-		return net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", forced))
+		return net.Listen("tcp", fmt.Sprintf("%s:%d", host, forced))
 	}
 	var cands []int
 	if saved > 0 {
@@ -308,11 +347,11 @@ func listenPreferred(forced, saved, preferred int) (net.Listener, error) {
 		cands = append(cands, preferred+i)
 	}
 	for _, p := range cands {
-		if l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p)); err == nil {
+		if l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, p)); err == nil {
 			return l, nil
 		}
 	}
-	return net.Listen("tcp", "127.0.0.1:0")
+	return net.Listen("tcp", fmt.Sprintf("%s:0", host))
 }
 
 func runningInstance(dataDir string) (instanceInfo, bool) {
