@@ -25,6 +25,8 @@ docker compose up -d
 
 Supply `LLM_TOKEN` through the deployment environment if your provider requires a Bearer token. `LLM_PROVIDER` is a display name in the server logs. The `HUMANIZER_EXTERNAL_*` variables are supported as fallbacks. The WebUI checks `/models` before reporting ready.
 
+For multiple computers, use `LLM_SOURCES` as a JSON array. Each item has `id`, `name`, `provider`, `api`, `model`, and optional `token`. Set `LLM_ACTIVE` to the initial source ID. Click the ready status pill in the WebUI to switch sources; the selected source is probed before activation and every rewrite uses the active source.
+
 Data is stored in the named Docker volume `humanizer-data` (launcher settings/logs; the editor history remains in the browser). To stop, run `docker compose down`.
 
 ## Synology Container Manager

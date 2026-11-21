@@ -179,6 +179,10 @@ kbd { font-family: var(--f-mono); }
 .pop-grid dt { color: var(--ink-3); font-size: 12px; padding-top: 1px; }
 .pop-grid dd { margin: 0; font-family: var(--f-mono); font-size: 12px; color: var(--ink); word-break: break-all; }
 .pop-actions { border-top: 1px solid var(--line-2); padding-top: 8px; display: grid; gap: 2px; }
+.llm-source-list { display: grid; gap: 2px; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line-2); }
+.llm-source-list .row-btn { display: grid; grid-template-columns: 1fr auto; text-align: left; }
+.llm-source-list .row-btn small { color: var(--ink-3); font-family: var(--f-mono); font-size: 10px; }
+.llm-source-list .row-btn.active { background: var(--sunk); color: var(--accent); }
 .row-btn {
   display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 9px; font-size: 13.5px; color: var(--ink-2);
   text-align: left;

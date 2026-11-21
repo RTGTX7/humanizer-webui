@@ -25,6 +25,7 @@ const DICT = {
     'status.paused': '已暂停',
     'status.setup': '未安装模型',
     'status.error': '出错',
+    'toast.sourceChanged': '已切换模型源',
     'status.offline': '已断开',
     'status.writing': '改写中',
 
@@ -359,6 +360,7 @@ const DICT = {
     'status.paused': 'Paused',
     'status.setup': 'No model yet',
     'status.error': 'Error',
+    'toast.sourceChanged': 'Model source changed',
     'status.offline': 'Disconnected',
     'status.writing': 'Writing',
 

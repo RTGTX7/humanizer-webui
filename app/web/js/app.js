@@ -166,7 +166,8 @@ function renderStatus() {
     case 'ready': {
       state = 'ready';
       const be = BACKEND[st.engine?.backend] || st.engine?.backend || '';
-      const parts = extOn() ? [t('status.ready'), t('ext.status'), st.external.model] : [t('status.ready'), tier?.label, be];
+      const source = (st.llm_sources || []).find((item) => item.id === st.active_llm);
+      const parts = extOn() ? [t('status.ready'), source?.name || t('ext.status'), st.external.model] : [t('status.ready'), tier?.label, be];
       text = S.running ? t('status.writing') : parts.filter(Boolean).join(' · ');
       break;
     }
@@ -460,6 +461,30 @@ function renderPop() {
   $('pi-model').textContent = st.external?.model || (tier ? `${tier.label} · ${tier.file}` : 'Humanizer');
   $('pi-engine').textContent = st.external?.enabled ? t('ext.engine') : (BACKEND[e.backend] || e.backend || 'LM Studio');
   $('pi-device').textContent = st.external?.url || e.device || '—';
+  const sourceBox = $('llm-source-list');
+  const sources = st.llm_sources || [];
+  sourceBox.hidden = sources.length < 2;
+  if (sources.length >= 2) {
+    sourceBox.replaceChildren(...sources.map((src) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'row-btn' + (src.id === st.active_llm ? ' active' : '');
+      b.innerHTML = `<span>${escapeHTML(src.name)}</span><small>${escapeHTML(src.provider || '')} · ${escapeHTML(src.model || '')}</small>`;
+      b.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        b.disabled = true;
+        try {
+          await postJSON('/app/llm/source', { id: src.id }, { timeout: 10000 });
+          toast(t('toast.sourceChanged'), 'ok');
+          await poll();
+        } catch (error) {
+          toast(error.message, 'err');
+          b.disabled = false;
+        }
+      });
+      return b;
+    }));
+  }
 }
 
 function togglePop(force) {

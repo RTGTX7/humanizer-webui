@@ -8,6 +8,8 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       LLM_PROVIDER: "${LLM_PROVIDER:-lm-studio}"
+      LLM_SOURCES: "${LLM_SOURCES:-}"
+      LLM_ACTIVE: "${LLM_ACTIVE:-}"
       LLM_API: "${LLM_API:-}"
       LLM_MODEL: "${LLM_MODEL:-}"
       LLM_TOKEN: "${LLM_TOKEN:-}"

@@ -67,6 +67,8 @@ type App struct {
 	url           string
 	apiKey        string // llama-server 的访问密钥,每次启动随机生成,只有启动器的反代知道
 	extKey        string // 外部服务的 API key(external.go),从数据目录读,只在启动器里用
+	llmSources    []LLMSource
+	activeLLM     string
 
 	rootCtx  context.Context
 	shutdown context.CancelFunc

@@ -171,6 +171,10 @@ func Main(o Options) int {
 	} else {
 		a.extKey = a.loadExternalKey()
 	}
+	if err := a.configureLLMSources(); err != nil {
+		logger.Print(err)
+		return 1
+	}
 	if os.Getenv("HUMANIZER_SERVER") == "1" && !a.externalOn() {
 		logger.Print("LLM_API is required in server mode")
 		return 1

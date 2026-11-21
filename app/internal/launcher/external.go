@@ -40,7 +40,71 @@ type externalStatus struct {
 	Problem string `json:"problem,omitempty"`
 }
 
+type LLMSource struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
+	API      string `json:"api"`
+	Model    string `json:"model"`
+	Token    string `json:"token,omitempty"`
+}
+
+type llmSourceStatus struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
+
 const externalKeyFile = "external-api-key"
+
+func (a *App) configureLLMSources() error {
+	raw := strings.TrimSpace(os.Getenv("LLM_SOURCES"))
+	if raw == "" {
+		return nil
+	}
+	var sources []LLMSource
+	if err := json.Unmarshal([]byte(raw), &sources); err != nil {
+		return fmt.Errorf("invalid LLM_SOURCES: %w", err)
+	}
+	if len(sources) == 0 {
+		return errors.New("LLM_SOURCES is empty")
+	}
+	active := os.Getenv("LLM_ACTIVE")
+	if active == "" {
+		active = sources[0].ID
+	}
+	seen := make(map[string]bool)
+	for _, src := range sources {
+		if src.ID == "" || src.Name == "" || src.API == "" || seen[src.ID] {
+			return errors.New("each LLM source needs unique id, name and api")
+		}
+		seen[src.ID] = true
+	}
+	for _, src := range sources {
+		if src.ID != active {
+			continue
+		}
+		base, err := normalizeExternalURL(src.API)
+		if err != nil {
+			return fmt.Errorf("invalid LLM source %s: %w", src.ID, err)
+		}
+		a.llmSources, a.activeLLM = sources, src.ID
+		a.settings.External = &ExternalSettings{Enabled: true, URL: base, Model: src.Model}
+		a.extKey = src.Token
+		return nil
+	}
+	return fmt.Errorf("active LLM source not found: %s", active)
+}
+
+func (a *App) sourceByID(id string) (LLMSource, bool) {
+	for _, src := range a.llmSources {
+		if src.ID == id {
+			return src, true
+		}
+	}
+	return LLMSource{}, false
+}
 
 // externalKeyPath:key 跟着运行目录走(换运行目录时 storage.go 的 moveExternalKey 把它搬过去)。
 func (a *App) externalKeyPath() string {
@@ -124,7 +188,7 @@ func normalizeExternalURL(raw string) (string, error) {
 
 // 外部服务的连接:只限制建连和读响应头之前的部分;生成本身(长文、慢机器)不设总时限,用户可以随时停止。
 var externalTransport = &http.Transport{
-	Proxy:                 http.ProxyFromEnvironment, // localhost / 127.0.0.1 永远不走代理
+	Proxy:                 nil, // provider URLs must be reached directly, including LAN hostnames on Synology
 	DialContext:           (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
 	TLSHandshakeTimeout:   10 * time.Second,
 	MaxIdleConnsPerHost:   2,

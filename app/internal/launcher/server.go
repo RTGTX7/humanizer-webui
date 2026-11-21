@@ -30,11 +30,11 @@ func (a *App) handler() http.Handler {
 	mux.HandleFunc("GET /app/status", a.handleStatus)
 	mux.HandleFunc("GET /app/config", a.handleConfig)
 	if os.Getenv("HUMANIZER_SERVER") == "1" {
+		mux.HandleFunc("GET /app/llm/sources", a.handleLLMSources)
+		mux.HandleFunc("POST /app/llm/source", a.handleLLMSource)
 		mux.HandleFunc("POST /app/document", a.handleDocument)
 		mux.HandleFunc("POST /app/engine/restart", a.handleRestart)
 		mux.Handle("POST /api/v1/chat/completions", a.apiProxy())
-		mux.Handle("/app/", http.NotFoundHandler())
-		mux.Handle("/api/", http.NotFoundHandler())
 		mux.Handle("/", a.static())
 		return a.guard(mux)
 	}
@@ -220,6 +220,8 @@ type statusResp struct {
 	IdleExitMinutes int             `json:"idle_exit_minutes"`
 	CtxSize         int             `json:"ctx_size"`
 	External        *externalStatus `json:"external"`
+	ActiveLLM       string          `json:"active_llm,omitempty"`
+	LLMSources      []llmSourceStatus `json:"llm_sources,omitempty"`
 	// Notice:"lite_retired" = 这台机器以前选的是已下线的 lite 档,网页提示换成推荐的 12B 档位;旧文件不删。
 	Notice string `json:"notice,omitempty"`
 }
@@ -234,6 +236,12 @@ func (a *App) handleStatus(w http.ResponseWriter, r *http.Request) {
 		IdleExitMinutes: int(a.idleExit / time.Minute),
 		CtxSize:         a.cfg.Engine.CtxSize,
 	}
+	a.mu.Lock()
+	s.ActiveLLM = a.activeLLM
+	for _, src := range a.llmSources {
+		s.LLMSources = append(s.LLMSources, llmSourceStatus{ID: src.ID, Name: src.Name, Provider: src.Provider, Model: src.Model})
+	}
+	a.mu.Unlock()
 	for _, b := range a.backends {
 		s.Backends = append(s.Backends, b.Name)
 	}
@@ -376,6 +384,58 @@ func (a *App) checkLLM(ctx context.Context) error {
 		return fmt.Errorf("Configured model %q is missing from /models", model)
 	}
 	return nil
+}
+
+func (a *App) handleLLMSources(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	items := make([]llmSourceStatus, 0, len(a.llmSources))
+	for _, src := range a.llmSources {
+		items = append(items, llmSourceStatus{ID: src.ID, Name: src.Name, Provider: src.Provider, Model: src.Model})
+	}
+	writeJSON(w, 200, map[string]any{"active": a.activeLLM, "sources": items})
+}
+
+func (a *App) handleLLMSource(w http.ResponseWriter, r *http.Request) {
+	var req struct { ID string `json:"id"` }
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&req); err != nil || req.ID == "" {
+		writeJSON(w, 400, map[string]any{"error": "source id required"})
+		return
+	}
+	a.mu.Lock()
+	src, ok := a.sourceByID(req.ID)
+	current := a.activeLLM
+	a.mu.Unlock()
+	if !ok {
+		writeJSON(w, 404, map[string]any{"error": "unknown source"})
+		return
+	}
+	if current != req.ID {
+		base, err := normalizeExternalURL(src.API)
+		if err != nil {
+			writeJSON(w, 400, map[string]any{"error": "invalid source API"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
+		models, status, err := probeExternal(ctx, base, src.Token)
+		cancel()
+		if err != nil {
+			if status == 0 { status = http.StatusBadGateway }
+			writeJSON(w, status, map[string]any{"error": fmt.Sprintf("source %q is not reachable", src.Name)})
+			return
+		}
+		if src.Model != "" && !slices.Contains(models, src.Model) {
+			writeJSON(w, 422, map[string]any{"error": fmt.Sprintf("model %q not returned by source", src.Model)})
+			return
+		}
+		a.mu.Lock()
+		base, _ = normalizeExternalURL(src.API)
+		a.settings.External = &ExternalSettings{Enabled: true, URL: base, Model: src.Model}
+		a.extKey, a.activeLLM = src.Token, src.ID
+		a.mu.Unlock()
+		externalTransport.CloseIdleConnections()
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "active": req.ID})
 }
 
 func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {

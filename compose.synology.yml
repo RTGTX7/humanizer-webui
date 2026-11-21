@@ -6,9 +6,13 @@ services:
       - "47616:47616"
     environment:
       HUMANIZER_PUBLIC_ORIGIN: "http://192.168.1.10:47616"
+      # JSON array. Replace IP addresses and model IDs; tokens stay in the NAS project environment.
+      LLM_SOURCES: >-
+        [{"id":"pc-a","name":"主机 A","provider":"lm-studio","api":"http://192.168.1.20:1234/v1","model":"humanizer@q6_k","token":"${LLM_TOKEN_A:-}"},{"id":"pc-b","name":"主机 B","provider":"lm-studio","api":"http://192.168.1.21:1234/v1","model":"humanizer@q6_k","token":"${LLM_TOKEN_B:-}"}]
+      LLM_ACTIVE: "pc-a"
       LLM_PROVIDER: "lm-studio"
-      LLM_API: "http://192.168.1.20:1234/v1"
-      LLM_MODEL: "humanizer@q6_k"
+      LLM_API: ""
+      LLM_MODEL: ""
       LLM_TOKEN: "${LLM_TOKEN:-}"
     volumes:
       - humanizer-data:/data
